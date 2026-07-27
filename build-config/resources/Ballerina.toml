@@ -1,0 +1,23 @@
+[package]
+distribution = "2201.12.0"
+org = "ballerinax"
+name = "telegram"
+version = "@toml.version@"
+authors = ["Ballerina"]
+repository = "https://github.com/ballerina-platform/module-ballerinax-telegram"
+keywords = ["Communication/Telegram", "Cost/Free", "Vendor/Telegram", "Area/Communication", "Type/Connector", "Type/Trigger"]
+icon = "icon.png"
+readme = "../README.md"
+license = ["Apache-2.0"]
+
+[build-options]
+observabilityIncluded = true
+
+[platform.java21]
+graalvmCompatible = true
+
+[[platform.java21.dependency]]
+groupId = "io.ballerinax"
+artifactId = "telegram-native"
+version = "@project.version@"
+path = "../native/build/libs/telegram-native-@project.version@.jar"
