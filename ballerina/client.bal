@@ -75,6 +75,10 @@ public isolated client class Client {
     # + return - The raw JSON response envelope, or a `ClientError`
     private isolated function postJson(string resourcePath, anydata payload) returns json|Error {
         json|error response = self.clientEp->post(resourcePath, payload);
+        if response is http:ClientRequestError|http:RemoteServerError {
+            json|error body = response.detail().body.ensureType();
+            return body is error ? error ClientError(ERR_RESPONSE_READ_FAILED, body) : body;
+        }
         if response is error {
             return error ClientError(ERR_HTTP_REQUEST_FAILED, response);
         }
