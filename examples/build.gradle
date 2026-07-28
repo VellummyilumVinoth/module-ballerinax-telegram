@@ -16,7 +16,7 @@
  * under the License.
  */
 
-task test {
+task testExamples {
     doLast {
         try {
             exec {
@@ -33,10 +33,10 @@ task test {
     }
 }
 
-task build {
+task buildExamples {
     gradle.taskGraph.whenReady { graph ->
-        if (graph.hasTask(":telegram-examples:test")) {
-            build.enabled = false
+        if (graph.hasTask(":telegram-examples:testExamples")) {
+            buildExamples.enabled = false
         }
     }
     doLast {
@@ -53,5 +53,5 @@ task build {
     }
 }
 
-test.dependsOn ":telegram-ballerina:build"
-build.dependsOn ":telegram-ballerina:build"
+testExamples.dependsOn ":telegram-ballerina:build"
+buildExamples.dependsOn ":telegram-ballerina:build"
