@@ -14,4 +14,4 @@ jobs:
     with:
       package-name: telegram
       package-org: ballerinax
-      additional-publish-flags: "-x :telegram-examples:test"
+      additional-publish-flags: "-x :telegram-examples:test -x :telegram-examples:build"
