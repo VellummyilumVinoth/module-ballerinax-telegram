@@ -36,23 +36,23 @@ The `telegram:Listener` needs updates pushed to it — Telegram supports only on
 Expose the listener's port publicly first (a tunnel such as `ngrok http 8090` is the usual approach during development), then start the listener with the bot token and that public URL — it registers its own webhook automatically:
 
 ```ballerina
-listener telegram:Listener telegramListener = new (8090, token = "<BOT_TOKEN>", publicUrl = "https://<TUNNEL_HOST>/");
+listener telegram:Listener telegramListener = new (8090, token = "my-bot-token", publicUrl = "https://my-app.example.com/");
 ```
 
-No separate `Client->setWebhook` call, and no `secretToken`/`secret_token` anywhere — the listener derives the secret token from `<BOT_TOKEN>` via `deriveSecretToken` and registers `publicUrl` as the webhook itself as soon as it starts. By default, `allowed_updates` is set to exactly the 9 update types this connector's `Listener` supports (`message`, `edited_message`, `channel_post`, `edited_channel_post`, `callback_query`, `inline_query`, `poll`, `pre_checkout_query`, `shipping_query`), so Telegram itself filters out anything else before it ever reaches your webhook. That's separate from dispatch: even among these 9 types, an update is only delivered to your service if you declared a handler for it (see Step 3 below) — an update whose type you didn't declare a handler for is logged and dropped after reaching the listener, not before.
+No separate `Client->setWebhook` call, and no `secretToken`/`secret_token` anywhere — the listener derives the secret token from the bot token via `deriveSecretToken` and registers `publicUrl` as the webhook itself as soon as it starts. By default, `allowed_updates` is set to exactly the 9 update types this connector's `Listener` supports (`message`, `edited_message`, `channel_post`, `edited_channel_post`, `callback_query`, `inline_query`, `poll`, `pre_checkout_query`, `shipping_query`), so Telegram itself filters out anything else before it ever reaches your webhook. That's separate from dispatch: even among these 9 types, an update is only delivered to your service if you declared a handler for it (see Step 3 below) — an update whose type you didn't declare a handler for is logged and dropped after reaching the listener, not before.
 
 If you'd rather register the webhook yourself (e.g. from a separate process, or to control exactly when it happens), omit `publicUrl` and call `Client->setWebhook` explicitly instead — note this still needs a `token`-initialized `Client`, and both the listener and the client must agree on the same secret token:
 
 ```ballerina
-listener telegram:Listener telegramListener = new (8090, token = "<BOT_TOKEN>");
+listener telegram:Listener telegramListener = new (8090, token = "my-bot-token");
 ...
-telegram:Client telegramClient = check new ({token: "<BOT_TOKEN>"});
-_ = check telegramClient->setWebhook("https://<TUNNEL_HOST>/");
+telegram:Client telegramClient = check new ({token: "my-bot-token"});
+_ = check telegramClient->setWebhook("https://my-app.example.com/");
 ```
 
-Both independently derive the same secret token from `<BOT_TOKEN>`, so they agree with no coordination. And if you'd rather manage the secret token yourself entirely (e.g. to rotate it independently of the bot token), pass `secretToken`/`secret_token` explicitly instead of `token` on **both** the listener and `setWebhook` — any string matching `[A-Za-z0-9_-]{1,256}` — it takes precedence over the derived default. If the two sides end up with different secret tokens (e.g. one passes `token` and the other passes a different `secretToken`), every update is rejected with `401` — see below.
+Both independently derive the same secret token from the bot token, so they agree with no coordination. And if you'd rather manage the secret token yourself entirely (e.g. to rotate it independently of the bot token), pass `secretToken`/`secret_token` explicitly instead of `token` on **both** the listener and `setWebhook` — any string matching `[A-Za-z0-9_-]{1,256}` — it takes precedence over the derived default. If the two sides end up with different secret tokens (e.g. one passes `token` and the other passes a different `secretToken`), every update is rejected with `401` — see below.
 
-Telegram then `POST`s each update to your URL, carrying header `X-Telegram-Bot-Api-Secret-Token: <SECRET_TOKEN>` — the listener rejects (`401`) any request where this doesn't match exactly, so `ListenerConfig` always requires one of `secretToken`/`token`, with no bypass.
+Telegram then `POST`s each update to your URL, carrying the configured secret token in the `X-Telegram-Bot-Api-Secret-Token` header — the listener rejects (`401`) any request where this doesn't match exactly, so `ListenerConfig` always requires one of `secretToken`/`token`, with no bypass.
 
 To stop receiving updates, call `Client->deleteWebhook()`. To check what's currently registered (e.g. to debug a webhook that isn't firing), call `Client->getWebhookInfo()`.
 
