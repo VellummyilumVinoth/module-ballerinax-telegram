@@ -18,22 +18,15 @@
 # `token`.
 @display {label: "Listener Config"}
 public type ListenerConfig record {|
-    # Use this secret token directly. Every inbound update is authenticated by comparing it
-    # against the `X-Telegram-Bot-Api-Secret-Token` header.
+    # The secret token to authenticate inbound updates against, used directly.
     @display {label: "Secret Token"}
     string secretToken?;
-    # Derive the secret token from this bot token via `deriveSecretToken` — the same derivation
-    # `Client->setWebhook` falls back to when its own `secret_token` option is omitted, so neither
-    # side needs a separately invented/threaded secret. Also required (alongside `publicUrl`) for
-    # the listener to register its own webhook automatically when it starts.
+    # The bot token to derive the secret token from; also required with `publicUrl` for auto-registration.
     @display {label: "Bot Token"}
     string token?;
-    # This listener's public HTTPS URL. When set together with `token`, starting the listener
-    # automatically registers it as the webhook via `Client->setWebhook`, so no separate
-    # `setWebhook` call is needed.
+    # This listener's public HTTPS URL, used to auto-register the webhook when set with `token`.
     @display {label: "Public URL"}
     string publicUrl?;
-    # The Telegram Bot API base URL used for the automatic `setWebhook` call when `publicUrl` is
-    # set. Only useful to override in tests or when routing through a proxy.
+    # The Telegram Bot API base URL; override only for tests or a proxy.
     string serviceUrl = DEFAULT_BASE_URL;
 |};

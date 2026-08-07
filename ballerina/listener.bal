@@ -31,8 +31,8 @@ type AttachedService record {|
 # the 9 supported update types to an attached `TelegramService`.
 #
 # ```ballerina
-# listener telegram:Listener telegramListener = new (8090, token = "<BOT_TOKEN>",
-#         publicUrl = "https://<PUBLIC_HOST>/");
+# listener telegram:Listener telegramListener = new (8090, token = "my-bot-token",
+#         publicUrl = "https://my-app.example.com/");
 #
 # service telegram:TelegramService on telegramListener {
 #     remote function onMessage(telegram:Message message) returns error? {

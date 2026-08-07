@@ -17,29 +17,22 @@
 # The service object a consumer implements to handle Telegram webhook updates. Attach an
 # implementation to a `Listener` to receive updates.
 #
-# `TelegramService` declares no remote methods of its own — implement only the handlers you need;
-# an unimplemented handler is simply not invoked. Declaring a remote function under any other
-# name, with the wrong parameter type, or without the `remote` qualifier is a compile error (see
-# this connector's compiler plugin). There are nine supported handlers, one per supported update
-# type:
+# Implement only the handlers you need; an unimplemented handler is simply not invoked, and an
+# update outside the nine supported types is logged and dropped. A compiler plugin enforces that
+# every declared remote function matches one of the nine below, with the right parameter type.
 #
 # - `remote function onMessage(Message message) returns error?;` — a new incoming message.
-# - `remote function onEditedMessage(Message editedMessage) returns error?;` — a message the
-#   bot knows about was edited.
+# - `remote function onEditedMessage(Message editedMessage) returns error?;` — an edited message.
 # - `remote function onChannelPost(Message channelPost) returns error?;` — a new channel post.
-# - `remote function onEditedChannelPost(Message editedChannelPost) returns error?;` — a
-#   channel post the bot knows about was edited.
+# - `remote function onEditedChannelPost(Message editedChannelPost) returns error?;` — an edited
+#   channel post.
 # - `remote function onCallbackQuery(CallbackQuery callbackQuery) returns error?;` — an inline
 #   keyboard button press.
 # - `remote function onInlineQuery(InlineQuery inlineQuery) returns error?;` — a new inline query.
 # - `remote function onPoll(Poll poll) returns error?;` — a poll's state changed.
-# - `remote function onPreCheckoutQuery(PreCheckoutQuery preCheckoutQuery) returns error?;` — a new
+# - `remote function onPreCheckoutQuery(PreCheckoutQuery preCheckoutQuery) returns error?;` — a
 #   pre-checkout query.
-# - `remote function onShippingQuery(ShippingQuery shippingQuery) returns error?;` — a new shipping
+# - `remote function onShippingQuery(ShippingQuery shippingQuery) returns error?;` — a shipping
 #   query.
-#
-# An update outside this set (e.g. `poll_answer`, `my_chat_member`, `chat_member`,
-# `chat_join_request`, business-account events) is logged and dropped rather than delivered to a
-# handler.
 public type TelegramService distinct service object {
 };

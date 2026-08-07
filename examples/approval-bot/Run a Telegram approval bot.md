@@ -27,8 +27,8 @@ The listener starts on port `8090`. Point a public tunnel (e.g. `ngrok http 8090
 register the webhook:
 
 ```ballerina
-telegram:Client telegramClient = check new ({token: "<BOT_TOKEN>"});
-_ = check telegramClient->setWebhook("https://<TUNNEL_HOST>/", secret_token = "<WEBHOOK_SECRET_TOKEN>");
+telegram:Client telegramClient = check new ({token});
+_ = check telegramClient->setWebhook("https://my-app.example.com/", secret_token = secretToken);
 ```
 
 Then message the bot to see the approve/decline prompt.
