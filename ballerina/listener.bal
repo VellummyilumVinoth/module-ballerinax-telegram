@@ -15,6 +15,7 @@
 // under the License.
 
 import ballerina/http;
+import ballerina/log;
 
 # A `TelegramService` and its backing `HttpService`, tracked together so `detach` can look up the
 # right `HttpService` for a given `TelegramService`.
@@ -27,12 +28,12 @@ type AttachedService record {|
 |};
 
 # Listener for Telegram Bot API webhook updates. It wraps an `http:Listener`, authenticates each
-# update against a caller-chosen secret token (`X-Telegram-Bot-Api-Secret-Token`), and dispatches
-# the 9 supported update types to an attached `TelegramService`.
+# update against a secret token (`X-Telegram-Bot-Api-Secret-Token`) derived internally from
+# `accessToken`, and dispatches the 9 supported update types to an attached `TelegramService`.
 #
 # ```ballerina
-# listener telegram:Listener telegramListener = new (8090, token = "my-bot-token",
-#         publicUrl = "https://my-app.example.com/");
+# listener telegram:Listener telegramListener = new (8090, accessToken = "my-bot-access-token",
+#         callbackUrl = "https://my-app.example.com/");
 #
 # service telegram:TelegramService on telegramListener {
 #     remote function onMessage(telegram:Message message) returns error? {
@@ -42,20 +43,26 @@ type AttachedService record {|
 # }
 # ```
 #
-# Passing `publicUrl` (alongside `token`) registers this listener's webhook automatically when it
-# starts — no separate `Client->setWebhook` call needed.
+# The webhook secret token is always derived internally from `accessToken` via
+# `deriveSecretToken`, and passing `callbackUrl` registers this listener's webhook automatically
+# when it starts — no separate `Client->setWebhook` call needed.
+#
+# By default, each update is acknowledged (`200 OK`) automatically as soon as it's received, before
+# any handler runs. Annotate an attached service with `ServiceConfig` and set `autoAck: false` to
+# take control of this yourself — declare a handler's optional second parameter as a `Caller` and
+# call `caller->complete()` when ready; see `Caller` and `ServiceConfig`.
 @display {label: "Telegram", iconPath: "icon.png"}
 public class Listener {
     private final http:Listener httpListener;
     private final string secretToken;
-    private final string? publicUrl;
+    private final string? callbackUrl;
     private final Client? webhookClient;
     private AttachedService[] attachedServices = [];
 
     # Initializes the webhook listener.
     #
     # + listenTo - A port number to bind a new `http:Listener` to, or an existing `http:Listener`
-    # + config - The listener configuration; requires either `secretToken` or `token`
+    # + config - The listener configuration
     # + return - An `Error` if the listener could not be initialized, otherwise `()`
     public function init(int|http:Listener listenTo, *ListenerConfig config) returns Error? {
         if listenTo is int {
@@ -67,25 +74,14 @@ public class Listener {
         } else {
             self.httpListener = listenTo;
         }
-        string? secretToken = config.secretToken;
-        string? token = config.token;
-        if secretToken is string {
-            self.secretToken = secretToken;
-        } else if token is string {
-            self.secretToken = check deriveSecretToken(token);
-        } else {
-            return error ClientError(ERR_SECRET_TOKEN_OR_TOKEN_REQUIRED);
-        }
+        self.secretToken = check deriveSecretToken(config.accessToken);
 
-        string? publicUrl = config.publicUrl;
-        if publicUrl is string {
-            if token is () {
-                return error ClientError(ERR_PUBLIC_URL_REQUIRES_TOKEN);
-            }
-            self.publicUrl = publicUrl;
-            self.webhookClient = check new ({token}, config.serviceUrl);
+        string? callbackUrl = config.callbackUrl;
+        if callbackUrl is string {
+            self.callbackUrl = callbackUrl;
+            self.webhookClient = check new ({accessToken: config.accessToken}, config.serviceUrl);
         } else {
-            self.publicUrl = ();
+            self.callbackUrl = ();
             self.webhookClient = ();
         }
     }
@@ -96,7 +92,8 @@ public class Listener {
     # + name - The path (or path segments) to attach the service on; defaults to the listener root
     # + return - An `Error` if attaching failed, otherwise `()`
     public function attach(TelegramService telegramService, string[]|string? name = ()) returns Error? {
-        HttpService httpService = new (telegramService, self.secretToken);
+        TelegramServiceConfig serviceConfig = (typeof telegramService).@ServiceConfig ?: {};
+        HttpService httpService = new (telegramService, self.secretToken, serviceConfig.autoAck);
         error? attachResult = self.httpListener.attach(httpService, name);
         if attachResult is error {
             return error ClientError(ERR_HTTP_LISTENER_ATTACH_FAILED, attachResult);
@@ -121,8 +118,10 @@ public class Listener {
         }
     }
 
-    # Starts the listener. If `publicUrl` was set on `ListenerConfig`, also registers it as the
-    # webhook via `Client->setWebhook`.
+    # Starts the listener. If `callbackUrl` was set on `ListenerConfig`, also registers it as the
+    # webhook via `Client->setWebhook`. If that registration fails, the underlying `http:Listener`
+    # is stopped again before the error is returned, so a failed `start()` never leaves a listener
+    # running with no webhook registered.
     #
     # + return - An `Error` if the listener, or the webhook registration, could not be started
     public function 'start() returns Error? {
@@ -130,10 +129,20 @@ public class Listener {
         if startResult is error {
             return error ClientError(ERR_HTTP_LISTENER_START_FAILED, startResult);
         }
-        string? publicUrl = self.publicUrl;
+        string? callbackUrl = self.callbackUrl;
         Client? webhookClient = self.webhookClient;
-        if publicUrl is string && webhookClient is Client {
-            _ = check webhookClient->setWebhook(publicUrl, secret_token = self.secretToken);
+        if callbackUrl is string && webhookClient is Client {
+            Error? webhookResult = webhookClient->setWebhook(callbackUrl, secret_token = self.secretToken);
+            if webhookResult is error {
+                // The HTTP listener already started and is accepting requests; if webhook
+                // registration fails, leaving it running would keep the port bound with no way to
+                // register the webhook without a fresh `Listener`, so tear it back down.
+                error? stopResult = self.httpListener.immediateStop();
+                if stopResult is error {
+                    log:printError(ERR_HTTP_LISTENER_STOP_FAILED, stopResult);
+                }
+                return webhookResult;
+            }
         }
     }
 

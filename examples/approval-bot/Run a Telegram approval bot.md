@@ -7,15 +7,16 @@ message to show the decision.
 
 ## Prerequisites
 
-Create a `Config.toml` in this directory:
+Expose port `8090` publicly first (a tunnel such as `ngrok http 8090` is the usual approach during
+development), then create a `Config.toml` in this directory with your bot's access token and that
+public URL:
 
 ```toml
-token = "<BOT_TOKEN>"
-secretToken = "<WEBHOOK_SECRET_TOKEN>"
+accessToken = "<BOT_ACCESS_TOKEN>"
+callbackUrl = "<YOUR_PUBLIC_HTTPS_URL>"
 ```
 
-See the root [setup guide](../../README.md#setup-guide) for how to obtain a bot token and
-register a webhook.
+See the root [setup guide](../../README.md#setup-guide) for how to obtain a bot access token.
 
 ## Run the example
 
@@ -23,12 +24,6 @@ register a webhook.
 bal run
 ```
 
-The listener starts on port `8090`. Point a public tunnel (e.g. `ngrok http 8090`) at it and
-register the webhook:
-
-```ballerina
-telegram:Client telegramClient = check new ({token});
-_ = check telegramClient->setWebhook("https://my-app.example.com/", secret_token = secretToken);
-```
-
-Then message the bot to see the approve/decline prompt.
+The listener starts on port `8090` and registers `callbackUrl` as its webhook automatically —
+the webhook secret token is derived internally from `accessToken`, so there's nothing else to
+configure. Message the bot to see the approve/decline prompt.

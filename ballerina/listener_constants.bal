@@ -49,9 +49,8 @@ const WARN_UNRECOGNIZED_UPDATE_FIELD =
 const ERR_PAYLOAD_READ_FAILED = "Failed to read Telegram webhook payload as text";
 const ERR_PAYLOAD_PARSE_FAILED = "Failed to parse Telegram webhook payload as JSON";
 const ERR_UPDATE_PARSE_FAILED = "Failed to parse Telegram update envelope";
+const ERR_ACK_FAILED = "Failed to acknowledge the Telegram webhook update";
 
-const ERR_SECRET_TOKEN_OR_TOKEN_REQUIRED = "ListenerConfig requires either secretToken or token to be set";
-const ERR_PUBLIC_URL_REQUIRES_TOKEN = "ListenerConfig.publicUrl requires token to also be set";
 const ERR_HTTP_LISTENER_INIT_FAILED = "Failed to initialize the underlying http:Listener";
 const ERR_HTTP_LISTENER_ATTACH_FAILED = "Failed to attach the service to the underlying http:Listener";
 const ERR_HTTP_LISTENER_DETACH_FAILED = "Failed to detach the service from the underlying http:Listener";

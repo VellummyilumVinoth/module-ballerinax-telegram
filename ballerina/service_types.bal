@@ -21,6 +21,9 @@
 # update outside the nine supported types is logged and dropped. A compiler plugin enforces that
 # every declared remote function matches one of the nine below, with the right parameter type.
 #
+# Each handler may optionally declare a second `Caller` parameter for manual acknowledgement (see
+# `ServiceConfig`/`TelegramServiceConfig.autoAck`), e.g. `onMessage(Message message, Caller caller)`.
+#
 # - `remote function onMessage(Message message) returns error?;` — a new incoming message.
 # - `remote function onEditedMessage(Message editedMessage) returns error?;` — an edited message.
 # - `remote function onChannelPost(Message channelPost) returns error?;` — a new channel post.
@@ -36,3 +39,18 @@
 #   query.
 public type TelegramService distinct service object {
 };
+
+# Configuration for a `TelegramService`'s acknowledgement behavior.
+@display {label: "Service Config"}
+public type TelegramServiceConfig record {|
+    # Whether the listener acknowledges (`200 OK`) an update automatically as soon as it's
+    # received, before any handler runs. Set to `false` to take control of this yourself —
+    # declare a handler's optional second parameter as a `Caller` and call `caller->complete()`
+    # when ready; see `Caller`. Defaults to `true` (automatic acknowledgement).
+    @display {label: "Auto Ack"}
+    boolean autoAck = true;
+|};
+
+# Configures a `TelegramService`'s acknowledgement behavior. Optional — a service with no
+# `@ServiceConfig` behaves as though `autoAck: true` were set.
+public annotation TelegramServiceConfig ServiceConfig on service, class;

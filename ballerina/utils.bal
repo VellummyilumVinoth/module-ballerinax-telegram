@@ -79,27 +79,25 @@ isolated function buildMultipartRequest(map<anydata> fields, string mediaFieldNa
     return request;
 }
 
-# Deterministically derives a webhook secret token from a bot token, suitable for both
-# `ListenerConfig.secretToken` and `Client->setWebhook`'s `secret_token` option — an alternative to
-# inventing and threading a random secret through both sides of a webhook setup by hand.
+# Deterministically derives a webhook secret token from a bot access token. `Listener` and
+# `Client->setWebhook` both call this internally so the secret they end up using always matches
+# without any manual coordination — exposed publicly mainly so callers can independently compute
+# or verify the same value, e.g. for debugging a webhook registration.
 #
-# The same `token` always derives the same secret token, so the `Listener` (verifying inbound
-# updates) and the `Client` (registering the webhook) can each compute it independently, and it
-# stays stable across restarts — unlike a freshly-generated random secret, which would desync from
-# whatever Telegram already has registered the moment the process restarts.
+# The same `accessToken` always derives the same secret token, and it stays stable across
+# restarts — unlike a freshly-generated random secret, which would desync from whatever Telegram
+# already has registered the moment the process restarts.
 #
 # ```ballerina
-# string secretToken = check telegram:deriveSecretToken(token);
-# listener telegram:Listener telegramListener = new (8090, secretToken = secretToken);
-# _ = check telegramClient->setWebhook(webhookUrl, secret_token = secretToken);
+# string expectedSecret = check telegram:deriveSecretToken(accessToken);
 # ```
 #
-# + token - The bot token to derive the secret from, e.g. `ConnectionConfig.token`
-# + return - A 64-character lowercase hex string deterministic for a given `token` (hex is already
-#            within the `[A-Za-z0-9_-]` charset `secret_token` requires), or a `ClientError` if the
-#            underlying HMAC computation fails
-public isolated function deriveSecretToken(string token) returns string|Error {
-    byte[]|error mac = crypto:hmacSha256(token.toBytes(), DERIVE_SECRET_TOKEN_KEY.toBytes());
+# + accessToken - The bot access token to derive the secret from, e.g. `ConnectionConfig.accessToken`
+# + return - A 64-character lowercase hex string deterministic for a given `accessToken` (hex is
+#            already within the `[A-Za-z0-9_-]` charset `secret_token` requires), or a
+#            `ClientError` if the underlying HMAC computation fails
+public isolated function deriveSecretToken(string accessToken) returns string|Error {
+    byte[]|error mac = crypto:hmacSha256(accessToken.toBytes(), DERIVE_SECRET_TOKEN_KEY.toBytes());
     if mac is error {
         return error ClientError(ERR_SECRET_DERIVATION_FAILED, mac);
     }

@@ -22,7 +22,7 @@ import ballerina/test;
 
 @test:Config {}
 function testClientInitialization() returns error? {
-    Client _ = check new ({token: "test-token"});
+    Client _ = check new ({accessToken: "test-token"});
 }
 
 // ── Listener / Webhook Secret Token ───────────────────────────────────────────────
@@ -65,17 +65,19 @@ function sampleUpdate(int updateId) returns json => {
     }
 };
 
-// A matching secret token is accepted and the update is dispatched to the matching handler.
+// A `Listener` derives its secret token from `accessToken`, so a request authenticated with that
+// derived value is accepted and dispatched to the matching handler.
 @test:Config {}
 function testSecretTokenMatchDispatchesUpdate() returns error? {
-    Listener telegramListener = check new (TEST_PORT, secretToken = "secret-token");
+    Listener telegramListener = check new (TEST_PORT, accessToken = "bot-token");
     MockTelegramService mockService = new;
     check telegramListener.attach(mockService);
     check telegramListener.'start();
 
+    string derivedSecret = check deriveSecretToken("bot-token");
     http:StatusCodeClient callerClient = check new (string `http://localhost:${TEST_PORT}`);
     http:Ok _ = check callerClient->post("/", sampleUpdate(1),
-            headers = {"X-Telegram-Bot-Api-Secret-Token": "secret-token"});
+            headers = {"X-Telegram-Bot-Api-Secret-Token": derivedSecret});
 
     int retries = 0;
     while mockService.getMessageCount() == 0 && retries < 20 {
@@ -92,13 +94,14 @@ function testSecretTokenMatchDispatchesUpdate() returns error? {
 @test:Config {}
 function testDispatchSkipsUndeclaredHandler() returns error? {
     int port = TEST_PORT + 4;
-    Listener telegramListener = check new (port, secretToken = "secret-token");
+    Listener telegramListener = check new (port, accessToken = "bot-token");
     check telegramListener.attach(new EmptyTelegramService());
     check telegramListener.'start();
 
+    string derivedSecret = check deriveSecretToken("bot-token");
     http:StatusCodeClient callerClient = check new (string `http://localhost:${port}`);
     http:Ok _ = check callerClient->post("/", sampleUpdate(1),
-            headers = {"X-Telegram-Bot-Api-Secret-Token": "secret-token"});
+            headers = {"X-Telegram-Bot-Api-Secret-Token": derivedSecret});
 
     check telegramListener.immediateStop();
 }
@@ -115,7 +118,7 @@ function waitOutDispatchWindow() {
 @test:Config {}
 function testSecretTokenMismatchRejected() returns error? {
     int port = TEST_PORT + 1;
-    Listener telegramListener = check new (port, secretToken = "secret-token");
+    Listener telegramListener = check new (port, accessToken = "bot-token");
     MockTelegramService mockService = new;
     check telegramListener.attach(mockService);
     check telegramListener.'start();
@@ -133,7 +136,7 @@ function testSecretTokenMismatchRejected() returns error? {
 @test:Config {}
 function testMissingSecretTokenHeaderRejected() returns error? {
     int port = TEST_PORT + 2;
-    Listener telegramListener = check new (port, secretToken = "secret-token");
+    Listener telegramListener = check new (port, accessToken = "bot-token");
     MockTelegramService mockService = new;
     check telegramListener.attach(mockService);
     check telegramListener.'start();
@@ -146,13 +149,109 @@ function testMissingSecretTokenHeaderRejected() returns error? {
     check telegramListener.immediateStop();
 }
 
-// A `Listener` created with `token` (instead of `secretToken`) derives the same secret token
-// `deriveSecretToken` would, so a request authenticated with that derived value is accepted.
+// ── Manual Acknowledgement ────────────────────────────────────────────────────────
+
+// A service whose `onMessage` declares the optional `Caller` parameter and acknowledges via it.
+@ServiceConfig {
+    autoAck: false
+}
+isolated service class ManualAckTelegramService {
+    *TelegramService;
+    private int messageCount = 0;
+
+    remote isolated function onMessage(Message message, Caller caller) returns error? {
+        lock {
+            self.messageCount += 1;
+        }
+        check caller->complete();
+    }
+
+    isolated function getMessageCount() returns int {
+        lock {
+            return self.messageCount;
+        }
+    }
+}
+
+// A service whose `onMessage` declares the `Caller` parameter but never calls `complete()`.
+@ServiceConfig {
+    autoAck: false
+}
+isolated service class NeverAckingTelegramService {
+    *TelegramService;
+
+    remote isolated function onMessage(Message message, Caller caller) returns error? {
+    }
+}
+
+// A service identical to `ManualAckTelegramService` but with no `ServiceConfig` annotation, so it
+// defaults to `autoAck: true`.
+isolated service class AutoAckTelegramService {
+    *TelegramService;
+    private int messageCount = 0;
+
+    remote isolated function onMessage(Message message, Caller caller) returns error? {
+        lock {
+            self.messageCount += 1;
+        }
+        check caller->complete();
+    }
+
+    isolated function getMessageCount() returns int {
+        lock {
+            return self.messageCount;
+        }
+    }
+}
+
+// With a service annotated `ServiceConfig {autoAck: false}`, a handler that calls
+// `caller->complete()` gets its `200 OK` — proving the listener itself no longer responds
+// unconditionally before dispatch.
 @test:Config {}
-function testListenerDerivesSecretTokenFromToken() returns error? {
-    int port = TEST_PORT + 5;
-    Listener telegramListener = check new (port, token = "bot-token");
-    MockTelegramService mockService = new;
+function testManualAckRespondsWhenHandlerCompletes() returns error? {
+    int port = TEST_PORT + 11;
+    Listener telegramListener = check new (port, accessToken = "bot-token");
+    ManualAckTelegramService mockService = new;
+    check telegramListener.attach(mockService);
+    check telegramListener.'start();
+
+    string derivedSecret = check deriveSecretToken("bot-token");
+    http:StatusCodeClient callerClient = check new (string `http://localhost:${port}`);
+    http:Ok _ = check callerClient->post("/", sampleUpdate(1),
+            headers = {"X-Telegram-Bot-Api-Secret-Token": derivedSecret});
+    test:assertEquals(mockService.getMessageCount(), 1, "onMessage should have been invoked exactly once");
+
+    check telegramListener.immediateStop();
+}
+
+// With a service annotated `ServiceConfig {autoAck: false}`, a handler that never calls
+// `caller->complete()` never sends the `200 OK` acknowledgement itself — the underlying
+// `http:Service` sends its own default `500` once the resource function returns having never
+// responded. That's still a non-`2xx`, so it still leads to the same outcome documented on
+// `Caller`: Telegram's own retry-then-give-up behavior takes over.
+@test:Config {}
+function testManualAckNeverRespondsWhenHandlerDoesNotComplete() returns error? {
+    int port = TEST_PORT + 12;
+    Listener telegramListener = check new (port, accessToken = "bot-token");
+    check telegramListener.attach(new NeverAckingTelegramService());
+    check telegramListener.'start();
+
+    string derivedSecret = check deriveSecretToken("bot-token");
+    http:StatusCodeClient callerClient = check new (string `http://localhost:${port}`);
+    http:InternalServerError _ = check callerClient->post("/", sampleUpdate(1),
+            headers = {"X-Telegram-Bot-Api-Secret-Token": derivedSecret});
+
+    check telegramListener.immediateStop();
+}
+
+// With the default `autoAck: true` (no `ServiceConfig` annotation), the listener still responds
+// immediately regardless of whether the handler also declares (and calls) a `Caller` — calling
+// `complete()` after the listener already responded is a safe no-op.
+@test:Config {}
+function testManualAckCompleteIsNoOpWhenAlreadyAutoAcked() returns error? {
+    int port = TEST_PORT + 13;
+    Listener telegramListener = check new (port, accessToken = "bot-token");
+    AutoAckTelegramService mockService = new;
     check telegramListener.attach(mockService);
     check telegramListener.'start();
 
@@ -167,28 +266,13 @@ function testListenerDerivesSecretTokenFromToken() returns error? {
         retries += 1;
     }
     test:assertEquals(mockService.getMessageCount(), 1,
-            "onMessage should have been invoked once the derived secret token matched");
+            "onMessage should have been invoked once, and its caller->complete() call should not error");
 
     check telegramListener.immediateStop();
 }
 
-// A `Listener` created with neither `secretToken` nor `token` fails to initialize.
-@test:Config {}
-function testListenerRequiresSecretTokenOrToken() {
-    Listener|error result = new (TEST_PORT + 6);
-    test:assertTrue(result is error, "Listener init should fail without secretToken or token");
-}
-
-// A `Listener` created with `publicUrl` but no `token` fails to initialize, since there is no bot
-// token to build the internal `Client` that would register the webhook.
-@test:Config {}
-function testListenerRequiresTokenForPublicUrl() {
-    Listener|error result = new (TEST_PORT + 8, secretToken = "secret-token", publicUrl = "https://example.com/");
-    test:assertTrue(result is error, "Listener init should fail when publicUrl is set without token");
-}
-
-// A `Listener` created with `token` and `publicUrl` registers its own webhook on `start()`,
-// without a separate `Client->setWebhook` call.
+// A `Listener` created with `accessToken` and `callbackUrl` registers its own webhook on
+// `start()`, without a separate `Client->setWebhook` call.
 int autoWebhookApiPort = TEST_PORT + 9;
 json autoWebhookLastPayload = {};
 
@@ -210,8 +294,8 @@ function testListenerRegistersWebhookOnStart() returns error? {
     check mockApiListener.'start();
 
     int port = TEST_PORT + 10;
-    Listener telegramListener = check new (port, token = "bot-token", publicUrl = "https://example.com/webhook",
-            serviceUrl = string `http://localhost:${autoWebhookApiPort}`);
+    Listener telegramListener = check new (port, accessToken = "bot-token",
+            callbackUrl = "https://example.com/webhook", serviceUrl = string `http://localhost:${autoWebhookApiPort}`);
     check telegramListener.'start();
 
     json payload;
@@ -220,9 +304,9 @@ function testListenerRegistersWebhookOnStart() returns error? {
     }
     string expectedSecret = check deriveSecretToken("bot-token");
     test:assertEquals(payload.url, "https://example.com/webhook",
-            "start() should register publicUrl as the webhook");
+            "start() should register callbackUrl as the webhook");
     test:assertEquals(payload.secret_token, expectedSecret,
-            "start() should register the webhook with the token-derived secret");
+            "start() should register the webhook with the accessToken-derived secret");
 
     check telegramListener.immediateStop();
     check mockApiListener.immediateStop();
@@ -251,7 +335,7 @@ function testSetWebhookSendsSecretToken() returns error? {
     check mockHttpListener.attach(new MockTelegramApiService(), "/");
     check mockHttpListener.'start();
 
-    Client telegramClient = check new ({token: "test-token"}, string `http://localhost:${mockWebhookPort}`);
+    Client telegramClient = check new ({accessToken: "test-token"}, string `http://localhost:${mockWebhookPort}`);
     check telegramClient->setWebhook("https://example.com/webhook", secret_token = "secret-token");
 
     json payload;
@@ -287,7 +371,7 @@ function testSetWebhookDerivesSecretTokenWhenOmitted() returns error? {
     check mockHttpListener.attach(new MockDerivedTelegramApiService(), "/");
     check mockHttpListener.'start();
 
-    Client telegramClient = check new ({token: "test-token"}, string `http://localhost:${derivedWebhookPort}`);
+    Client telegramClient = check new ({accessToken: "test-token"}, string `http://localhost:${derivedWebhookPort}`);
     check telegramClient->setWebhook("https://example.com/webhook");
 
     json payload;
@@ -296,7 +380,7 @@ function testSetWebhookDerivesSecretTokenWhenOmitted() returns error? {
     }
     string expectedSecret = check deriveSecretToken("test-token");
     test:assertEquals(payload.secret_token, expectedSecret,
-            "setWebhook should default secret_token to deriveSecretToken(token) when omitted");
+            "setWebhook should default secret_token to deriveSecretToken(accessToken) when omitted");
 
     check mockHttpListener.immediateStop();
 }
@@ -455,7 +539,7 @@ function testNonTwoXxStatusStillProducesTelegramError() returns error? {
     check mockHttpListener.attach(new MockTelegramErrorApiService(), "/");
     check mockHttpListener.'start();
 
-    Client telegramClient = check new ({token: "test-token"}, string `http://localhost:${telegramErrorApiPort}`);
+    Client telegramClient = check new ({accessToken: "test-token"}, string `http://localhost:${telegramErrorApiPort}`);
     ChatFullInfo|Error result = telegramClient->getChat(123);
     if result is TelegramError {
         test:assertEquals(result.detail().errorCode, 400);

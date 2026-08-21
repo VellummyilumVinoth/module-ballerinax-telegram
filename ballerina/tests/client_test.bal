@@ -105,7 +105,7 @@ service / on clientTestListener {
 }
 
 isolated function clientTestClient() returns Client|error =>
-    new ({token: "test-token"}, string `http://localhost:${clientTestApiPort}`);
+    new ({accessToken: "test-token"}, string `http://localhost:${clientTestApiPort}`);
 
 function clientTestLastPayloadSnapshot() returns json {
     lock {
@@ -202,7 +202,7 @@ function testDownloadFileFailsWhenFilePathUnavailable() returns error? {
     check mockHttpListener.attach(new MockFilePathUnavailableApiService(), "/");
     check mockHttpListener.'start();
 
-    Client telegramClient = check new ({token: "test-token"},
+    Client telegramClient = check new ({accessToken: "test-token"},
             string `http://localhost:${downloadFileMissingPathPort}`);
     byte[]|Error result = telegramClient->downloadFile("file-1");
     test:assertTrue(result is ClientError, "downloadFile should fail when the file has no file_path");
@@ -227,7 +227,7 @@ function testDownloadFileFailsOnNonOkStatus() returns error? {
     check mockHttpListener.attach(new MockFileNonOkStatusApiService(), "/");
     check mockHttpListener.'start();
 
-    Client telegramClient = check new ({token: "test-token"},
+    Client telegramClient = check new ({accessToken: "test-token"},
             string `http://localhost:${downloadFileNonOkStatusPort}`);
     byte[]|Error result = telegramClient->downloadFile("file-1");
     test:assertTrue(result is ClientError, "downloadFile should fail on a non-200 file download response");
@@ -453,7 +453,7 @@ function testSendPhotoWithRawBytesUsesMultipartUpload() returns error? {
     check mockHttpListener.attach(new MockMultipartUploadApiService(), "/");
     check mockHttpListener.'start();
 
-    Client telegramClient = check new ({token: "test-token"}, string `http://localhost:${multipartUploadPort}`);
+    Client telegramClient = check new ({accessToken: "test-token"}, string `http://localhost:${multipartUploadPort}`);
     Message message = check telegramClient->sendPhoto(100, "raw-bytes".toBytes(), fileName = "photo.png",
             mimeType = "image/png");
     test:assertEquals(message.message_id, 1);

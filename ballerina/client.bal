@@ -22,11 +22,11 @@ import ballerina/http;
 @display {label: "Telegram", iconPath: "icon.png"}
 public isolated client class Client {
     private final http:Client clientEp;
-    private final string token;
+    private final string accessToken;
 
     # Initializes the connector.
     #
-    # + config - The connection configuration, including the bot token
+    # + config - The connection configuration, including the bot access token
     # + serviceUrl - The Telegram Bot API base URL
     # + return - A `ClientError` if initialization failed, otherwise `()`
     public isolated function init(ConnectionConfig config, string serviceUrl = DEFAULT_BASE_URL)
@@ -56,13 +56,13 @@ public isolated client class Client {
             return error ClientError(ERR_HTTP_CLIENT_INIT_FAILED, clientEp);
         }
         self.clientEp = clientEp;
-        self.token = config.token;
+        self.accessToken = config.accessToken;
     }
 
-    private isolated function apiPath(string method) returns string => string `/bot${self.token}/${method}`;
+    private isolated function apiPath(string method) returns string => string `/bot${self.accessToken}/${method}`;
 
     private isolated function filePath(string telegramFilePath) returns string =>
-        string `/file/bot${self.token}/${telegramFilePath}`;
+        string `/file/bot${self.accessToken}/${telegramFilePath}`;
 
     # Posts a JSON-bodied request and returns the raw response envelope. A non-2xx status still
     # surfaces its body (Telegram Bot API errors carry `ok`/`description`/`error_code` in the body
@@ -235,8 +235,8 @@ public isolated client class Client {
     # + url - The HTTPS URL to deliver updates to
     # + options - Additional fields; `allowed_updates` defaults to exactly the 9 update types this
     #             connector's `Listener` supports. `secret_token` defaults to
-    #             `deriveSecretToken(token)` (the same bot token this `Client` was created with),
-    #             so a `Listener` created with `token` set instead of `secretToken` lands on the
+    #             `deriveSecretToken(accessToken)` (the same bot access token this `Client` was
+    #             created with), so a `Listener` created with the same `accessToken` lands on the
     #             same value automatically — pass `secret_token` explicitly to opt out
     # + return - An `Error` if the request failed, otherwise `()`
     remote isolated function setWebhook(string url, *SetWebhookOptions options) returns Error? {
@@ -244,7 +244,7 @@ public isolated client class Client {
         map<anydata> payload = {url, ...options};
         payload["allowed_updates"] = allowedUpdates is "*" ? SUPPORTED_UPDATE_TYPES : allowedUpdates;
         if options.secret_token is () {
-            payload["secret_token"] = check deriveSecretToken(self.token);
+            payload["secret_token"] = check deriveSecretToken(self.accessToken);
         }
         json response = check self.postJson(self.apiPath(METHOD_SET_WEBHOOK), payload);
         _ = check unwrapResult(response);

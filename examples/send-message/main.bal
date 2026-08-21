@@ -18,10 +18,10 @@ import ballerina/log;
 import ballerinax/telegram;
 
 // Provide these in Config.toml
-configurable string token = ?;
+configurable string accessToken = ?;
 configurable string chatId = ?;
 
-final telegram:Client telegramClient = check new ({token});
+final telegram:Client telegramClient = check new ({accessToken});
 
 public function main() returns error? {
     // 1. Send a text message.
