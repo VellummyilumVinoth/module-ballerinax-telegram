@@ -19,9 +19,9 @@ import ballerina/http;
 # Configuration for the Telegram Bot API `Client`.
 @display {label: "Connection Config"}
 public type ConnectionConfig record {|
-    # The bot token issued by @BotFather; embedded in every request's resource path
-    @display {label: "Bot Token"}
-    string token;
+    # The bot access token issued by @BotFather; embedded in every request's resource path
+    @display {label: "Access Token"}
+    string accessToken;
     # The HTTP version understood by the client
     http:HttpVersion httpVersion = http:HTTP_2_0;
     # Configurations related to HTTP/1.x protocol
@@ -1280,8 +1280,8 @@ public type SetWebhookOptions record {|
     # Whether to drop all pending updates before setting the new webhook
     boolean drop_pending_updates = false;
     # A secret token sent in the `X-Telegram-Bot-Api-Secret-Token` header of every webhook request,
-    # used to verify the request came from Telegram. Defaults to `deriveSecretToken(token)` if
-    # omitted; see `Client->setWebhook`'s doc comment
+    # used to verify the request came from Telegram. Defaults to `deriveSecretToken(accessToken)`
+    # if omitted; see `Client->setWebhook`'s doc comment
     string secret_token?;
     # The maximum allowed number of simultaneous HTTPS connections to the webhook, 1-100
     int max_connections?;

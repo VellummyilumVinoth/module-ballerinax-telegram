@@ -8,11 +8,11 @@ using the connector's `Client`.
 Create a `Config.toml` in this directory:
 
 ```toml
-token = "<BOT_TOKEN>"
+accessToken = "<BOT_ACCESS_TOKEN>"
 chatId = "<CHAT_ID>"
 ```
 
-See the root [setup guide](../../README.md#setup-guide) for how to obtain a bot token from
+See the root [setup guide](../../README.md#setup-guide) for how to obtain a bot access token from
 @BotFather and find a chat ID.
 
 ## Run the example

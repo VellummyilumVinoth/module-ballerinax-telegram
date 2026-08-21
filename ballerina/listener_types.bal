@@ -14,19 +14,17 @@
 // specific language governing permissions and limitations
 // under the License.
 
-# Configuration for the Telegram webhook `Listener`. Provide exactly one of `secretToken` or
-# `token`.
+# Configuration for the Telegram webhook `Listener`.
 @display {label: "Listener Config"}
 public type ListenerConfig record {|
-    # The secret token to authenticate inbound updates against, used directly.
-    @display {label: "Secret Token"}
-    string secretToken?;
-    # The bot token to derive the secret token from; also required with `publicUrl` for auto-registration.
-    @display {label: "Bot Token"}
-    string token?;
-    # This listener's public HTTPS URL, used to auto-register the webhook when set with `token`.
-    @display {label: "Public URL"}
-    string publicUrl?;
-    # The Telegram Bot API base URL; override only for tests or a proxy.
+    # The bot access token issued by @BotFather. Used both to derive the webhook secret token
+    # and, together with `callbackUrl`, to auto-register the webhook.
+    @display {label: "Access Token"}
+    string accessToken;
+    # This listener's public HTTPS URL, used to auto-register the webhook when set.
+    @display {label: "Callback URL"}
+    string callbackUrl?;
+    # The Telegram Bot API base URL; override only for a self-hosted Bot API server, tests, or a proxy.
+    @display {label: "Service URL"}
     string serviceUrl = DEFAULT_BASE_URL;
 |};

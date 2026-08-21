@@ -18,17 +18,17 @@ import ballerina/log;
 import ballerinax/telegram;
 
 // Provide these in Config.toml
-configurable string token = ?;
-configurable string secretToken = ?;
+configurable string accessToken = ?;
+configurable string callbackUrl = ?;
 
-final telegram:Client telegramClient = check new ({token});
+final telegram:Client telegramClient = check new ({accessToken});
 
 const string APPROVE_CALLBACK_DATA = "approve_request";
 const string DECLINE_CALLBACK_DATA = "decline_request";
 
-// Register the webhook once, pointing at this listener's public URL (e.g. via a tunnel during
-// development). Point Client->setWebhook at the same secretToken configured below.
-listener telegram:Listener telegramListener = new (8090, secretToken = secretToken);
+// callbackUrl is this listener's public HTTPS URL (e.g. via a tunnel during development). Setting
+// it auto-registers the webhook on start() — no separate Client->setWebhook call needed.
+listener telegram:Listener telegramListener = new (8090, accessToken = accessToken, callbackUrl = callbackUrl);
 
 service telegram:TelegramService on telegramListener {
 
