@@ -336,7 +336,7 @@ modules = [
 [[package]]
 org = "ballerinax"
 name = "telegram"
-version = "0.9.3"
+version = "0.9.4"
 dependencies = [
 	{org = "ballerina", name = "crypto"},
 	{org = "ballerina", name = "data.jsondata"},
